@@ -35,7 +35,10 @@ function isReadOnlyRuntime() {
 
 function getSupabaseStorageConfig() {
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+  const serviceKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.SUPABASE_SERVICE_KEY;
   const bucket = process.env.SUPABASE_STORAGE_BUCKET || process.env.SUPABASE_PUBLIC_BUCKET || "uploads";
 
   if (!url || !serviceKey) {
@@ -61,6 +64,7 @@ async function uploadToSupabaseStorage(file: File, objectPath: string) {
     {
       method: "POST",
       headers: {
+        apikey: config.serviceKey,
         Authorization: `Bearer ${config.serviceKey}`,
         "Content-Type": file.type || "application/octet-stream",
         "x-upsert": "false"
