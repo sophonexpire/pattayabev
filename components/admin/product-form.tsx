@@ -509,6 +509,92 @@ export function ProductForm({
 
         <section className="grid gap-5 rounded-[28px] border border-[#ece4d6] bg-white p-5 shadow-[0_12px_30px_rgba(0,0,0,0.04)] sm:p-6">
           <div>
+            <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[#8b6a2b]">ข้อมูลสินค้า</p>
+            <h3 className="mt-2 text-xl font-extrabold text-[#171212]">ชื่อสินค้า ราคา และสต็อก</h3>
+            <p className="mt-2 text-sm leading-7 text-[#5f5852]">
+              กรอกข้อมูลหลักที่ใช้แสดงบนหน้าสินค้า ราคาเป็นช่องบังคับและจะอัปเดตพรีวิวด้านขวาทันที
+            </p>
+          </div>
+
+          <div className="grid gap-5 xl:grid-cols-2">
+            <Field
+              label="ชื่อสินค้า"
+              name="name"
+              placeholder="WOODFORD RESERVE DOUBLE OAKED"
+              required
+              uppercase
+              defaultValue={initialPreview.name}
+              onPreviewChange={updatePreview("name")}
+              helperText="ชื่อสินค้าจะถูกแสดงบนการ์ดสินค้าและหน้ารายละเอียดสินค้า"
+            />
+            <Field
+              label="Slug (ไม่บังคับ)"
+              name="slug"
+              placeholder="woodford-reserve-double-oaked"
+              defaultValue={initialPreview.slug}
+              onPreviewChange={updatePreview("slug")}
+              helperText="ปล่อยว่างได้ ระบบจะสร้าง slug จากชื่อสินค้าให้อัตโนมัติ"
+            />
+            <Field
+              label="ราคา"
+              name="price"
+              type="number"
+              placeholder="1990"
+              required
+              defaultValue={initialPreview.price}
+              onPreviewChange={updatePreview("price")}
+              helperText="ใส่เฉพาะตัวเลข เช่น 1990"
+            />
+            <Field
+              label="จำนวนสต็อก"
+              name="stockQty"
+              type="number"
+              placeholder="12"
+              defaultValue={initialPreview.stockQty}
+              onPreviewChange={updatePreview("stockQty")}
+              helperText="ถ้าไม่กรอก ระบบจะบันทึกเป็น 0"
+            />
+            <Field
+              label="SKU (ไม่บังคับ)"
+              name="sku"
+              placeholder="WR-DO-750"
+              uppercase
+              defaultValue={initialPreview.sku}
+              onPreviewChange={updatePreview("sku")}
+              helperText="ใช้รหัสสินค้าภายในร้าน หรือปล่อยว่างได้"
+            />
+            <Field
+              label="คำอธิบายสั้นบนการ์ด"
+              name="subtitle"
+              placeholder="BOURBON WHISKEY 750 ML"
+              uppercase
+              defaultValue={initialPreview.subtitle}
+              onPreviewChange={updatePreview("subtitle")}
+              helperText="ข้อความสั้นใต้ชื่อสินค้าในพรีวิวและการ์ดสินค้า"
+            />
+            <Field
+              label="ขนาดขวด (ML)"
+              name="bottleSizeMl"
+              type="number"
+              placeholder="750"
+              defaultValue={initialPreview.bottleSizeMl}
+              onPreviewChange={updatePreview("bottleSizeMl")}
+              helperText="ใช้แสดงในบรรทัดข้อมูลสินค้า เช่น 750 ML"
+            />
+            <Field
+              label="แอลกอฮอล์ (%)"
+              name="alcoholPercent"
+              type="number"
+              placeholder="43.2"
+              defaultValue={initialPreview.alcoholPercent}
+              onPreviewChange={updatePreview("alcoholPercent")}
+              helperText="ใส่ตัวเลขเปอร์เซ็นต์ เช่น 43.2"
+            />
+          </div>
+        </section>
+
+        <section className="grid gap-5 rounded-[28px] border border-[#ece4d6] bg-white p-5 shadow-[0_12px_30px_rgba(0,0,0,0.04)] sm:p-6">
+          <div>
             <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[#8b6a2b]">ข้อมูลเพิ่มเติม</p>
             <h3 className="mt-2 text-xl font-extrabold text-[#171212]">รูปภาพและรายละเอียดสินค้า</h3>
           </div>
