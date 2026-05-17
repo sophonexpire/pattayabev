@@ -1,14 +1,10 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
-
 import { revalidatePath } from "next/cache";
 
 import { requireAdmin } from "@/lib/auth";
 import { createArticle, deleteArticle, updateArticle, type ArticleSection } from "@/lib/articles";
-import { IMAGE_UPLOAD_POLICY, assertUploadMatchesPolicy, getSafeUploadExtension } from "@/lib/upload-security";
+import { savePublicImageUpload } from "@/lib/upload-storage";
 
 export type ArticleFormState = {
   status: "idle" | "success" | "error";
@@ -147,27 +143,13 @@ function formatPublishedDate(value: string) {
 }
 
 async function saveUploadedImage(file: File, slugOrTitle: string, prefix = "cover") {
-  if (!(file instanceof File) || file.size === 0) {
-    return null;
-  }
-
-  assertUploadMatchesPolicy(file, IMAGE_UPLOAD_POLICY);
-
-  const safeBase =
-    slugOrTitle
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "article";
-  const extension = getSafeUploadExtension(file, ".png", IMAGE_UPLOAD_POLICY.allowedExtensions);
-  const fileName = `${safeBase}-${prefix}-${randomUUID()}${extension.toLowerCase()}`;
-  const uploadDir = path.join(process.cwd(), "public", "images", "uploads", "articles");
-  const filePath = path.join(uploadDir, fileName);
-
-  await mkdir(uploadDir, { recursive: true });
-  await writeFile(filePath, Buffer.from(await file.arrayBuffer()));
-
-  return `/images/uploads/articles/${fileName}`;
+  return savePublicImageUpload({
+    file,
+    folder: "articles",
+    baseName: slugOrTitle,
+    fallbackBaseName: "article",
+    prefix
+  });
 }
 
 function validationError(message: string): ArticleFormState {

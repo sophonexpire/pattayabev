@@ -1,15 +1,14 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 
 import { revalidatePath } from "next/cache";
 import type { PoolClient } from "pg";
 
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { IMAGE_UPLOAD_POLICY, assertUploadCount, assertUploadMatchesPolicy, getSafeUploadExtension } from "@/lib/upload-security";
+import { assertUploadCount } from "@/lib/upload-security";
+import { savePublicImageUpload } from "@/lib/upload-storage";
 
 export type ProductFormState = {
   status: "idle" | "success" | "error";
@@ -119,21 +118,12 @@ async function getUniqueSlug(
 }
 
 async function saveUploadedImage(file: File, slug: string) {
-  if (!file || file.size === 0) {
-    return null;
-  }
-
-  assertUploadMatchesPolicy(file, IMAGE_UPLOAD_POLICY);
-
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const extension = getSafeUploadExtension(file, ".png", IMAGE_UPLOAD_POLICY.allowedExtensions);
-  const fileName = `${slug || "product"}-${randomUUID()}${extension.toLowerCase()}`;
-  const uploadDir = path.join(process.cwd(), "public", "images", "uploads", "products");
-
-  await mkdir(uploadDir, { recursive: true });
-  await writeFile(path.join(uploadDir, fileName), buffer);
-
-  return `/images/uploads/products/${fileName}`;
+  return savePublicImageUpload({
+    file,
+    folder: "products",
+    baseName: slug,
+    fallbackBaseName: "product"
+  });
 }
 
 async function saveUploadedImages(files: File[], slug: string) {
