@@ -190,3 +190,24 @@ export async function getAdminPromotions(limit = 50): Promise<PromotionCard[]> {
     throw error;
   }
 }
+
+export async function getAdminPromotionById(id: string): Promise<PromotionCard | null> {
+  try {
+    const result = await db.query(
+      `
+        ${promotionSelect}
+        where pr.id = $1
+        limit 1
+      `,
+      [id]
+    );
+
+    return result.rowCount ? mapPromotion(result.rows[0] as QueryRow) : null;
+  } catch (error) {
+    if (isMissingPromotionsTable(error)) {
+      return null;
+    }
+
+    throw error;
+  }
+}

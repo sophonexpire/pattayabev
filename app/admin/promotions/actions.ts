@@ -37,7 +37,7 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-async function getUniquePromotionSlug(baseValue: string) {
+async function getUniquePromotionSlug(baseValue: string, excludeId?: string) {
   const baseSlug = slugify(baseValue) || "promotion";
 
   for (let attempt = 0; attempt < 50; attempt += 1) {
@@ -45,7 +45,9 @@ async function getUniquePromotionSlug(baseValue: string) {
     let existing;
 
     try {
-      existing = await db.query(`select id from public.promotions where slug = $1 limit 1`, [candidate]);
+      existing = excludeId
+        ? await db.query(`select id from public.promotions where slug = $1 and id <> $2::uuid limit 1`, [candidate, excludeId])
+        : await db.query(`select id from public.promotions where slug = $1 limit 1`, [candidate]);
     } catch (error) {
       if (error && typeof error === "object" && "code" in error) {
         const code = (error as { code?: string }).code;
@@ -64,6 +66,69 @@ async function getUniquePromotionSlug(baseValue: string) {
   }
 
   return `${baseSlug}-${randomUUID().slice(0, 8)}`;
+}
+
+function buildValidationError(message: string): PromotionFormState {
+  return {
+    status: "error",
+    message
+  };
+}
+
+async function resolvePromotionProduct(productId: string) {
+  if (!productId) {
+    return {
+      linkUrl: "",
+      productId: null as string | null
+    };
+  }
+
+  const productResult = await db.query(
+    `
+      select id, slug
+      from public.products
+      where id = $1
+      limit 1
+    `,
+    [productId]
+  );
+
+  if (!productResult.rowCount) {
+    return {
+      linkUrl: "",
+      productId: null as string | null
+    };
+  }
+
+  return {
+    linkUrl: `/products/${String(productResult.rows[0].slug)}`,
+    productId: String(productResult.rows[0].id)
+  };
+}
+
+function isMissingPromotionSchemaError(error: unknown) {
+  return Boolean(
+    error &&
+      typeof error === "object" &&
+      "code" in error &&
+      ["42P01", "42703"].includes((error as { code?: string }).code ?? "")
+  );
+}
+
+function isUniqueViolation(error: unknown) {
+  return Boolean(error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "23505");
+}
+
+function mapPromotionSaveError(error: unknown): PromotionFormState {
+  if (isMissingPromotionSchemaError(error)) {
+    return buildValidationError("ตารางโปรโมชั่นยังไม่มีฟิลด์ที่จำเป็น กรุณารัน supabase/create-promotions.sql ก่อน");
+  }
+
+  if (isUniqueViolation(error)) {
+    return buildValidationError("ชื่อโปรโมชั่นนี้ถูกใช้งานแล้ว กรุณาใช้ชื่ออื่น");
+  }
+
+  return buildValidationError(error instanceof Error ? error.message : "ไม่สามารถบันทึกโปรโมชั่นได้");
 }
 
 async function saveUploadedPromotionImage(file: File, slug: string) {
@@ -128,25 +193,7 @@ export async function createPromotionAction(_: PromotionFormState, formData: For
   const slug = await getUniquePromotionSlug(title);
 
   try {
-    let resolvedLinkUrl = "";
-    let resolvedProductId: string | null = null;
-
-    if (productId) {
-      const productResult = await db.query(
-        `
-          select id, slug
-          from public.products
-          where id = $1
-          limit 1
-        `,
-        [productId]
-      );
-
-      if (productResult.rowCount) {
-        resolvedProductId = String(productResult.rows[0].id);
-        resolvedLinkUrl = `/products/${String(productResult.rows[0].slug)}`;
-      }
-    }
+    const { linkUrl: resolvedLinkUrl, productId: resolvedProductId } = await resolvePromotionProduct(productId);
 
     const imageUrl = imageFile instanceof File && imageFile.size > 0 ? await saveUploadedPromotionImage(imageFile, slug) : null;
 
@@ -219,5 +266,152 @@ export async function createPromotionAction(_: PromotionFormState, formData: For
       status: "error",
       message: error instanceof Error ? error.message : "ไม่สามารถบันทึกโปรโมชั่นได้"
     };
+  }
+}
+
+export async function updatePromotionAction(_: PromotionFormState, formData: FormData): Promise<PromotionFormState> {
+  await requireAdmin();
+
+  const promotionId = getTextValue(formData, "promotionId");
+  const title = getTextValue(formData, "title");
+  const promotionType = "DISCOUNT";
+  const description = getTextValue(formData, "description");
+  const productId = getTextValue(formData, "productId");
+  const discountPercent = getNullableNumber(getTextValue(formData, "discountPercent"));
+  const startDate = getTextValue(formData, "startDate");
+  const endDate = getTextValue(formData, "endDate");
+  const isActive = getTextValue(formData, "isActive") === "true";
+  const existingImageUrl = getTextValue(formData, "existingImageUrl");
+  const imageFile = formData.get("promotionImage");
+
+  if (!promotionId) {
+    return buildValidationError("ไม่พบโปรโมชั่นที่ต้องการแก้ไข");
+  }
+
+  if (!title) {
+    return buildValidationError("กรุณากรอกชื่อโปรโมชั่น");
+  }
+
+  if (!productId) {
+    return buildValidationError("กรุณาเลือกสินค้าก่อน");
+  }
+
+  if (!discountPercent || discountPercent <= 0 || discountPercent > 100) {
+    return buildValidationError("กรุณากรอกเปอร์เซ็นต์ส่วนลดให้ถูกต้อง");
+  }
+
+  if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+    return buildValidationError("วันสิ้นสุดโปรโมชั่นต้องอยู่หลังวันเริ่มต้น");
+  }
+
+  try {
+    const existingPromotion = await db.query(
+      `
+        select id, slug
+        from public.promotions
+        where id = $1::uuid
+        limit 1
+      `,
+      [promotionId]
+    );
+
+    if (!existingPromotion.rowCount) {
+      return buildValidationError("ไม่พบโปรโมชั่นที่ต้องการแก้ไข");
+    }
+
+    const requestedSlug = slugify(title);
+    const currentSlug = String(existingPromotion.rows[0].slug);
+    const finalSlug =
+      !requestedSlug || requestedSlug === currentSlug
+        ? currentSlug
+        : await getUniquePromotionSlug(requestedSlug, promotionId);
+    const { linkUrl: resolvedLinkUrl, productId: resolvedProductId } = await resolvePromotionProduct(productId);
+    const imageUrl =
+      imageFile instanceof File && imageFile.size > 0
+        ? await saveUploadedPromotionImage(imageFile, finalSlug)
+        : existingImageUrl || null;
+
+    await db.query(
+      `
+        update public.promotions
+        set
+          title = $2,
+          slug = $3,
+          promotion_type = $4,
+          description = nullif($5, ''),
+          image_url = $6,
+          link_url = nullif($7, ''),
+          product_id = $8::uuid,
+          discount_percent = $9,
+          start_at = $10,
+          end_at = $11,
+          min_quantity = null,
+          bundle_price = null,
+          fixed_price = null,
+          is_active = $12
+        where id = $1::uuid
+      `,
+      [
+        promotionId,
+        title,
+        finalSlug,
+        promotionType,
+        description,
+        imageUrl,
+        resolvedLinkUrl,
+        resolvedProductId,
+        discountPercent,
+        startDate ? new Date(`${startDate}T00:00:00`) : null,
+        endDate ? new Date(`${endDate}T23:59:59`) : null,
+        isActive
+      ]
+    );
+
+    revalidatePath("/admin/promotions");
+    revalidatePath(`/admin/promotions/${promotionId}`);
+    revalidatePath("/promotions");
+
+    return {
+      status: "success",
+      message: "บันทึกการแก้ไขโปรโมชั่นเรียบร้อยแล้ว"
+    };
+  } catch (error) {
+    return mapPromotionSaveError(error);
+  }
+}
+
+export async function deletePromotionAction(_: PromotionFormState, formData: FormData): Promise<PromotionFormState> {
+  await requireAdmin();
+
+  const promotionId = getTextValue(formData, "promotionId");
+
+  if (!promotionId) {
+    return buildValidationError("ไม่พบโปรโมชั่นที่ต้องการลบ");
+  }
+
+  try {
+    const result = await db.query(
+      `
+        delete from public.promotions
+        where id = $1::uuid
+        returning id
+      `,
+      [promotionId]
+    );
+
+    if (!result.rowCount) {
+      return buildValidationError("ไม่พบโปรโมชั่นที่ต้องการลบ");
+    }
+
+    revalidatePath("/admin/promotions");
+    revalidatePath(`/admin/promotions/${promotionId}`);
+    revalidatePath("/promotions");
+
+    return {
+      status: "success",
+      message: "ลบโปรโมชั่นเรียบร้อยแล้ว"
+    };
+  } catch (error) {
+    return buildValidationError(error instanceof Error ? error.message : "ไม่สามารถลบโปรโมชั่นได้");
   }
 }

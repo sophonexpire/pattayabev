@@ -7,7 +7,7 @@ import path from "node:path";
 import { revalidatePath } from "next/cache";
 
 import { requireAdmin } from "@/lib/auth";
-import { createArticle, type ArticleSection } from "@/lib/articles";
+import { createArticle, deleteArticle, updateArticle, type ArticleSection } from "@/lib/articles";
 import { IMAGE_UPLOAD_POLICY, assertUploadMatchesPolicy, getSafeUploadExtension } from "@/lib/upload-security";
 
 export type ArticleFormState = {
@@ -18,6 +18,7 @@ export type ArticleFormState = {
 type ParsedSection = {
   id: string;
   title: string;
+  image?: string;
   intro?: string;
   paragraphs?: string[];
   bullets?: string[];
@@ -96,6 +97,7 @@ function parseSections(value: string) {
 
         const id = typeof section.id === "string" ? section.id.trim() : "";
         const title = typeof section.title === "string" ? section.title.trim() : "";
+        const image = typeof section.image === "string" ? section.image.trim() : "";
 
         if (!id || !title) {
           return null;
@@ -108,6 +110,7 @@ function parseSections(value: string) {
         return {
           id,
           title,
+          image: image || undefined,
           intro: intro || undefined,
           paragraphs,
           bullets
@@ -174,6 +177,15 @@ function validationError(message: string): ArticleFormState {
   };
 }
 
+function revalidateArticlePaths(slug: string) {
+  revalidatePath("/admin");
+  revalidatePath("/admin/articles");
+  revalidatePath(`/admin/articles/${slug}`);
+  revalidatePath("/articles");
+  revalidatePath("/catalog");
+  revalidatePath(`/articles/${slug}`);
+}
+
 export async function createArticleAction(_: ArticleFormState, formData: FormData): Promise<ArticleFormState> {
   await requireAdmin();
 
@@ -198,30 +210,30 @@ export async function createArticleAction(_: ArticleFormState, formData: FormDat
     return validationError("กรุณาเพิ่ม section ของบทความอย่างน้อย 1 ส่วน");
   }
 
-  const sections: ArticleSection[] = [];
-
-  for (const section of parsedSections) {
-    const imageField = formData.get(`sectionImage-${section.id}`);
-    const sectionImage =
-      imageField instanceof File && imageField.size > 0
-        ? await saveUploadedImage(imageField, title, `section-${section.id}`)
-        : null;
-
-    sections.push({
-      title: section.title,
-      image: sectionImage ?? undefined,
-      intro: section.intro,
-      paragraphs: section.paragraphs,
-      bullets: section.bullets
-    });
-  }
-
-  const imagePath =
-    coverImageFile instanceof File && coverImageFile.size > 0
-      ? await saveUploadedImage(coverImageFile, title)
-      : "/images/categories/recommended.jpg";
-
   try {
+    const sections: ArticleSection[] = [];
+
+    for (const section of parsedSections) {
+      const imageField = formData.get(`sectionImage-${section.id}`);
+      const sectionImage =
+        imageField instanceof File && imageField.size > 0
+          ? await saveUploadedImage(imageField, title, `section-${section.id}`)
+          : null;
+
+      sections.push({
+        title: section.title,
+        image: sectionImage ?? undefined,
+        intro: section.intro,
+        paragraphs: section.paragraphs,
+        bullets: section.bullets
+      });
+    }
+
+    const imagePath =
+      coverImageFile instanceof File && coverImageFile.size > 0
+        ? await saveUploadedImage(coverImageFile, title)
+        : "/images/categories/recommended.jpg";
+
     const article = await createArticle({
       category,
       title,
@@ -233,11 +245,7 @@ export async function createArticleAction(_: ArticleFormState, formData: FormDat
       sections
     });
 
-    revalidatePath("/admin");
-    revalidatePath("/admin/articles");
-    revalidatePath("/articles");
-    revalidatePath("/catalog");
-    revalidatePath(`/articles/${article.slug}`);
+    revalidateArticlePaths(article.slug);
 
     return {
       status: "success",
@@ -245,5 +253,105 @@ export async function createArticleAction(_: ArticleFormState, formData: FormDat
     };
   } catch (error) {
     return validationError(error instanceof Error ? error.message : "ไม่สามารถบันทึกบทความได้");
+  }
+}
+
+export async function updateArticleAction(_: ArticleFormState, formData: FormData): Promise<ArticleFormState> {
+  await requireAdmin();
+
+  const originalSlug = getTextValue(formData, "originalSlug");
+  const title = getTextValue(formData, "title");
+  const category = getTextValue(formData, "category");
+  const excerpt = getTextValue(formData, "excerpt");
+  const readTime = getTextValue(formData, "readTime");
+  const publishedDate = getTextValue(formData, "publishedDate");
+  const existingPublishedAt = getTextValue(formData, "existingPublishedAt");
+  const introduction = splitParagraphs(getTextValue(formData, "introduction"));
+  const parsedSections = parseSections(getTextValue(formData, "sectionsJson"));
+  const coverImageFile = formData.get("coverImageFile");
+  const existingImage = getTextValue(formData, "existingImage");
+
+  if (!originalSlug) {
+    return validationError("ไม่พบบทความที่ต้องการแก้ไข");
+  }
+
+  if (!title || !category || !excerpt) {
+    return validationError("กรุณากรอกชื่อบทความ หมวดหมู่ และคำเกริ่นสั้น");
+  }
+
+  if (!introduction.length) {
+    return validationError("กรุณาเพิ่มบทนำอย่างน้อย 1 ย่อหน้า");
+  }
+
+  if (!parsedSections.length) {
+    return validationError("กรุณาเพิ่มส่วนเนื้อหาอย่างน้อย 1 ส่วน");
+  }
+
+  try {
+    const sections: ArticleSection[] = [];
+
+    for (const section of parsedSections) {
+      const imageField = formData.get(`sectionImage-${section.id}`);
+      const sectionImage =
+        imageField instanceof File && imageField.size > 0
+          ? await saveUploadedImage(imageField, title, `section-${section.id}`)
+          : section.image;
+
+      sections.push({
+        title: section.title,
+        image: sectionImage ?? undefined,
+        intro: section.intro,
+        paragraphs: section.paragraphs,
+        bullets: section.bullets
+      });
+    }
+
+    const imagePath =
+      coverImageFile instanceof File && coverImageFile.size > 0
+        ? await saveUploadedImage(coverImageFile, title)
+        : existingImage || "/images/categories/recommended.jpg";
+
+    const { article, previousSlug } = await updateArticle(originalSlug, {
+      category,
+      title,
+      excerpt,
+      image: imagePath ?? "/images/categories/recommended.jpg",
+      publishedAt: publishedDate ? formatPublishedDate(publishedDate) : existingPublishedAt,
+      readTime: readTime || "อ่าน 5 นาที",
+      introduction,
+      sections
+    });
+
+    revalidateArticlePaths(previousSlug);
+    revalidateArticlePaths(article.slug);
+
+    return {
+      status: "success",
+      message: "บันทึกการแก้ไขบทความเรียบร้อยแล้ว"
+    };
+  } catch (error) {
+    return validationError(error instanceof Error ? error.message : "ไม่สามารถแก้ไขบทความได้");
+  }
+}
+
+export async function deleteArticleAction(_: ArticleFormState, formData: FormData): Promise<ArticleFormState> {
+  await requireAdmin();
+
+  const slug = getTextValue(formData, "slug");
+
+  if (!slug) {
+    return validationError("ไม่พบบทความที่ต้องการลบ");
+  }
+
+  try {
+    await deleteArticle(slug);
+    revalidateArticlePaths(slug);
+
+    return {
+      status: "success",
+      message: "ลบบทความเรียบร้อยแล้ว"
+    };
+  } catch (error) {
+    return validationError(error instanceof Error ? error.message : "ไม่สามารถลบบทความได้");
   }
 }

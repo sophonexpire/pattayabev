@@ -7,6 +7,7 @@ import {
   adminPrimaryActionClass,
   adminSecondaryActionClass
 } from "@/components/admin/admin-shell";
+import { ArticleDeleteForm } from "@/components/admin/article-delete-form";
 import { ArticleForm } from "@/components/admin/article-form";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { requireAdmin } from "@/lib/auth";
@@ -108,11 +109,18 @@ export default async function AdminArticlesPage() {
 
                   <div className="flex flex-wrap gap-3">
                     <Link
-                      href={`/articles/${article.slug}`}
+                      href={`/admin/articles/${article.slug}`}
                       className="inline-flex rounded-full bg-[#171212] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-white"
+                    >
+                      แก้ไขบทความ
+                    </Link>
+                    <Link
+                      href={`/articles/${article.slug}`}
+                      className="inline-flex rounded-full border border-[#d8cec0] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[#171212]"
                     >
                       ดูบทความ
                     </Link>
+                    <ArticleDeleteForm slug={article.slug} title={article.title} />
                   </div>
                 </div>
               </article>

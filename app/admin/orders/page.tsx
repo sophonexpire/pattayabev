@@ -30,23 +30,23 @@ function formatDateTime(value: string) {
 }
 
 function getOrderStatusLabel(status: string) {
-  if (status === "pending_payment") return "Pending payment";
-  if (status === "paid") return "Paid";
-  if (status === "processing") return "Processing";
-  if (status === "shipped") return "Shipped";
-  if (status === "completed") return "Completed";
-  if (status === "cancelled") return "Cancelled";
-  if (status === "cart") return "Cart";
+  if (status === "pending_payment") return "รอชำระเงิน";
+  if (status === "paid") return "ชำระแล้ว";
+  if (status === "processing") return "กำลังจัดเตรียม";
+  if (status === "shipped") return "จัดส่งแล้ว";
+  if (status === "completed") return "สำเร็จ";
+  if (status === "cancelled") return "ยกเลิก";
+  if (status === "cart") return "ตะกร้า";
   return status || "-";
 }
 
 function getPaymentStatusLabel(status: string) {
-  if (status === "paid") return "Paid";
-  if (status === "pending") return "Pending";
-  if (status === "failed") return "Failed";
-  if (status === "expired") return "Expired";
-  if (status === "refunded") return "Refunded";
-  return "Unpaid";
+  if (status === "paid") return "ชำระแล้ว";
+  if (status === "pending") return "รอดำเนินการ";
+  if (status === "failed") return "ไม่สำเร็จ";
+  if (status === "expired") return "หมดอายุ";
+  if (status === "refunded") return "คืนเงินแล้ว";
+  return "ยังไม่ชำระ";
 }
 
 function getStatusPillClass(status: string) {
@@ -76,15 +76,15 @@ function OrderRow({ order }: { order: AdminPaymentListItem }) {
     <article className="rounded-[24px] border border-[#ece4d6] bg-white p-5 shadow-[0_10px_24px_rgba(0,0,0,0.04)]">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[#8b6a2b]">Order</p>
+          <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[#8b6a2b]">คำสั่งซื้อ</p>
           <h3 className="mt-2 text-xl font-extrabold text-[#171212]">{order.orderNumber}</h3>
           <p className="mt-2 text-sm text-[#5f5852]">
-            {order.customerName} by {order.customerEmail}
+            {order.customerName} / {order.customerEmail}
           </p>
         </div>
 
         <div className="text-right">
-          <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[#8b6a2b]">Total</p>
+          <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[#8b6a2b]">ยอดรวม</p>
           <p className="mt-2 text-2xl font-extrabold text-[#171212]">
             {formatPrice(order.totalAmount, order.currency)}
           </p>
@@ -93,27 +93,27 @@ function OrderRow({ order }: { order: AdminPaymentListItem }) {
 
       <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <div className="rounded-2xl border border-[#ece4d6] px-4 py-3">
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#8b6a2b]">Order status</p>
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#8b6a2b]">สถานะคำสั่งซื้อ</p>
           <span className={`mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-bold ${getStatusPillClass(order.orderStatus)}`}>
             {getOrderStatusLabel(order.orderStatus)}
           </span>
         </div>
         <div className="rounded-2xl border border-[#ece4d6] px-4 py-3">
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#8b6a2b]">Payment</p>
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#8b6a2b]">การชำระเงิน</p>
           <span className={`mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-bold ${getStatusPillClass(order.paymentStatus)}`}>
             {getPaymentStatusLabel(order.paymentStatus)}
           </span>
         </div>
         <div className="rounded-2xl border border-[#ece4d6] px-4 py-3">
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#8b6a2b]">Customer phone</p>
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#8b6a2b]">เบอร์ลูกค้า</p>
           <p className="mt-2 text-sm font-semibold text-[#171212]">{order.customerPhone}</p>
         </div>
         <div className="rounded-2xl border border-[#ece4d6] px-4 py-3">
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#8b6a2b]">Reference</p>
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#8b6a2b]">เลขอ้างอิง</p>
           <p className="mt-2 truncate text-sm font-semibold text-[#171212]">{order.paymentReference ?? "-"}</p>
         </div>
         <div className="rounded-2xl border border-[#ece4d6] px-4 py-3">
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#8b6a2b]">Created</p>
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#8b6a2b]">วันที่สร้าง</p>
           <p className="mt-2 text-sm font-semibold text-[#171212]">{formatDateTime(order.createdAt)}</p>
         </div>
       </div>
@@ -123,13 +123,13 @@ function OrderRow({ order }: { order: AdminPaymentListItem }) {
           href={`/admin/orders/${order.orderNumber}`}
           className="inline-flex rounded-full bg-[#171212] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-white"
         >
-          Manage order
+          จัดการคำสั่งซื้อ
         </Link>
         <Link
           href={`/order-confirmation/${order.orderNumber}`}
           className="inline-flex rounded-full border border-[#d8cec0] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[#171212]"
         >
-          View customer page
+          ดูหน้าลูกค้า
         </Link>
       </div>
     </article>
@@ -165,19 +165,19 @@ export default async function AdminOrdersPage({
       getAdminPayments({ query, orderStatus, paymentStatus, paymentMethod }, 120)
     ]);
   } catch (error) {
-    schemaMessage = error instanceof Error ? error.message : "Unable to load orders.";
+    schemaMessage = error instanceof Error ? error.message : "ไม่สามารถโหลดคำสั่งซื้อได้";
   }
 
   return (
     <AdminShell
       currentPath="/admin/orders"
       eyebrow="PattayaBev Admin"
-      title={`Manage orders, ${session.user.name}`}
-      description="Search customer orders, review payment state, open the full order detail, and update fulfillment status from one admin workspace."
+      title={`จัดการคำสั่งซื้อ, ${session.user.name}`}
+      description="ค้นหาคำสั่งซื้อ ตรวจสถานะการชำระเงิน เปิดรายละเอียดคำสั่งซื้อ และอัปเดตสถานะจัดส่งได้จากหน้าเดียว"
       actions={
         <>
           <Link className={adminSecondaryActionClass} href="/admin/payments">
-            Payments
+            การชำระเงิน
           </Link>
           <LogoutButton className={adminPrimaryActionClass} redirectTo="/login" />
         </>
@@ -190,18 +190,18 @@ export default async function AdminOrdersPage({
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <SummaryCard label="All orders" value={String(summary.totalOrders)} helper="Orders in the checkout system." />
-        <SummaryCard label="Awaiting payment" value={String(summary.awaitingPayment)} helper="Unpaid or pending payment orders." />
-        <SummaryCard label="Paid" value={String(summary.paidOrders)} helper="Orders confirmed as paid." />
-        <SummaryCard label="Needs review" value={String(summary.problemOrders)} helper="Failed, expired, or refunded payments." />
-        <SummaryCard label="Paid revenue" value={formatPrice(summary.totalPaidAmount)} helper="Total paid amount in the system." />
+        <SummaryCard label="คำสั่งซื้อทั้งหมด" value={String(summary.totalOrders)} helper="รายการที่อยู่ในระบบเช็กเอาต์" />
+        <SummaryCard label="รอชำระเงิน" value={String(summary.awaitingPayment)} helper="รายการที่ยังไม่ชำระหรือรอดำเนินการ" />
+        <SummaryCard label="ชำระแล้ว" value={String(summary.paidOrders)} helper="รายการที่ยืนยันการชำระเงินแล้ว" />
+        <SummaryCard label="ต้องตรวจสอบ" value={String(summary.problemOrders)} helper="รายการที่ล้มเหลว หมดอายุ หรือคืนเงินแล้ว" />
+        <SummaryCard label="ยอดชำระรวม" value={formatPrice(summary.totalPaidAmount)} helper="ยอดรวมของรายการที่ชำระแล้ว" />
       </div>
 
       <section className="rounded-[24px] border border-[#ece4d6] bg-white p-5 shadow-[0_12px_30px_rgba(0,0,0,0.04)] sm:p-6">
         <div className="flex flex-wrap items-end justify-between gap-4 border-b border-[#ece4d6] pb-5">
           <div>
-            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-[#8b6a2b]">Filters</p>
-            <h2 className="mt-2 text-2xl font-extrabold text-[#171212] sm:text-3xl">Find an order</h2>
+            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-[#8b6a2b]">ตัวกรอง</p>
+            <h2 className="mt-2 text-2xl font-extrabold text-[#171212] sm:text-3xl">ค้นหาคำสั่งซื้อ</h2>
           </div>
         </div>
 
@@ -210,7 +210,7 @@ export default async function AdminOrdersPage({
             type="text"
             name="q"
             defaultValue={query}
-            placeholder="Search order number, customer, email, or payment reference"
+            placeholder="ค้นหาเลขคำสั่งซื้อ ชื่อลูกค้า อีเมล หรือเลขอ้างอิง"
             className="min-h-[46px] rounded-2xl border border-[#ddd3c5] bg-white px-4 text-sm text-[#171212] outline-none transition focus:border-[#171212]"
           />
           <select
@@ -218,42 +218,42 @@ export default async function AdminOrdersPage({
             defaultValue={orderStatus}
             className="min-h-[46px] rounded-2xl border border-[#ddd3c5] bg-white px-4 text-sm text-[#171212] outline-none transition focus:border-[#171212]"
           >
-            <option value="">All order statuses</option>
-            <option value="pending_payment">Pending payment</option>
-            <option value="paid">Paid</option>
-            <option value="processing">Processing</option>
-            <option value="shipped">Shipped</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
+            <option value="">ทุกสถานะคำสั่งซื้อ</option>
+            <option value="pending_payment">รอชำระเงิน</option>
+            <option value="paid">ชำระแล้ว</option>
+            <option value="processing">กำลังจัดเตรียม</option>
+            <option value="shipped">จัดส่งแล้ว</option>
+            <option value="completed">สำเร็จ</option>
+            <option value="cancelled">ยกเลิก</option>
           </select>
           <select
             name="paymentStatus"
             defaultValue={paymentStatus}
             className="min-h-[46px] rounded-2xl border border-[#ddd3c5] bg-white px-4 text-sm text-[#171212] outline-none transition focus:border-[#171212]"
           >
-            <option value="">All payment statuses</option>
-            <option value="unpaid">Unpaid</option>
-            <option value="pending">Pending</option>
-            <option value="paid">Paid</option>
-            <option value="failed">Failed</option>
-            <option value="expired">Expired</option>
-            <option value="refunded">Refunded</option>
+            <option value="">ทุกสถานะชำระเงิน</option>
+            <option value="unpaid">ยังไม่ชำระ</option>
+            <option value="pending">รอดำเนินการ</option>
+            <option value="paid">ชำระแล้ว</option>
+            <option value="failed">ไม่สำเร็จ</option>
+            <option value="expired">หมดอายุ</option>
+            <option value="refunded">คืนเงินแล้ว</option>
           </select>
           <select
             name="paymentMethod"
             defaultValue={paymentMethod}
             className="min-h-[46px] rounded-2xl border border-[#ddd3c5] bg-white px-4 text-sm text-[#171212] outline-none transition focus:border-[#171212]"
           >
-            <option value="">All payment methods</option>
+            <option value="">ทุกวิธีชำระเงิน</option>
             <option value="promptpay">PromptPay QR</option>
-            <option value="card">Card</option>
-            <option value="cod">Cash on delivery</option>
+            <option value="card">บัตรเครดิต/เดบิต</option>
+            <option value="cod">ชำระเงินปลายทาง</option>
           </select>
           <button
             type="submit"
             className="inline-flex min-h-[46px] items-center justify-center rounded-full bg-[#171212] px-6 text-sm font-bold text-white"
           >
-            Apply
+            ค้นหา
           </button>
         </form>
       </section>
@@ -261,8 +261,8 @@ export default async function AdminOrdersPage({
       <section className="rounded-[24px] border border-[#ece4d6] bg-white p-5 shadow-[0_12px_30px_rgba(0,0,0,0.04)] sm:p-6">
         <div className="flex flex-wrap items-end justify-between gap-4 border-b border-[#ece4d6] pb-5">
           <div>
-            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-[#8b6a2b]">Order list</p>
-            <h2 className="mt-2 text-2xl font-extrabold text-[#171212] sm:text-3xl">Customer orders</h2>
+            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-[#8b6a2b]">รายการคำสั่งซื้อ</p>
+            <h2 className="mt-2 text-2xl font-extrabold text-[#171212] sm:text-3xl">คำสั่งซื้อของลูกค้า</h2>
           </div>
         </div>
 
@@ -274,7 +274,7 @@ export default async function AdminOrdersPage({
           </div>
         ) : (
           <div className="mt-6 rounded-[24px] border border-dashed border-[#d8cec0] bg-[#fbf7f0] px-6 py-10 text-center text-sm leading-7 text-[#5f5852]">
-            No orders match the selected filters.
+            ไม่พบคำสั่งซื้อที่ตรงกับตัวกรอง
           </div>
         )}
       </section>

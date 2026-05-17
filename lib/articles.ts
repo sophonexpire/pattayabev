@@ -39,6 +39,8 @@ export type CreateArticleInput = {
   sections: ArticleSection[];
 };
 
+export type UpdateArticleInput = CreateArticleInput;
+
 const articlesFilePath = path.join(process.cwd(), "data", "articles.json");
 
 function slugify(value: string) {
@@ -394,11 +396,57 @@ export async function createArticle(input: CreateArticleInput) {
   });
 
   if (!article) {
-    throw new Error("Invalid article data.");
+    throw new Error("ข้อมูลบทความไม่ถูกต้อง");
   }
 
   const nextArticles = [article, ...articles];
   await persistArticles(nextArticles);
 
   return article;
+}
+
+export async function updateArticle(originalSlug: string, input: UpdateArticleInput) {
+  const articles = await getArticles();
+  const existingArticle = articles.find((article) => article.slug === originalSlug);
+
+  if (!existingArticle) {
+    throw new Error("ไม่พบบทความที่ต้องการแก้ไข");
+  }
+
+  const baseSlug = slugify(input.slug || input.title) || originalSlug;
+  let nextSlug = baseSlug;
+  let attempt = 2;
+
+  while (articles.some((article) => article.slug === nextSlug && article.slug !== originalSlug)) {
+    nextSlug = `${baseSlug}-${attempt}`;
+    attempt += 1;
+  }
+
+  const article = normalizeArticle({
+    ...input,
+    slug: nextSlug
+  });
+
+  if (!article) {
+    throw new Error("ข้อมูลบทความไม่ถูกต้อง");
+  }
+
+  const nextArticles = articles.map((item) => (item.slug === originalSlug ? article : item));
+  await persistArticles(nextArticles);
+
+  return {
+    article,
+    previousSlug: existingArticle.slug
+  };
+}
+
+export async function deleteArticle(slug: string) {
+  const articles = await getArticles();
+  const nextArticles = articles.filter((article) => article.slug !== slug);
+
+  if (nextArticles.length === articles.length) {
+    throw new Error("ไม่พบบทความที่ต้องการลบ");
+  }
+
+  await persistArticles(nextArticles);
 }

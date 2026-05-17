@@ -137,7 +137,7 @@ async function saveUploadedImage(file: File, slug: string) {
 }
 
 async function saveUploadedImages(files: File[], slug: string) {
-  assertUploadCount(files, 6, "product image");
+  assertUploadCount(files, 6, "รูปสินค้า");
 
   const uploadedPaths: string[] = [];
 
@@ -152,6 +152,11 @@ async function saveUploadedImages(files: File[], slug: string) {
   return uploadedPaths;
 }
 
+async function getExistingIdByName(client: PoolClient, table: "brands" | "categories" | "countries" | "product_types" | "regions", name: string) {
+  const fallback = await client.query(`select id from public.${table} where lower(name) = lower($1) limit 1`, [name]);
+  return fallback.rowCount ? String(fallback.rows[0].id) : null;
+}
+
 async function findOrCreateBrandId(client: PoolClient, brandName: string) {
   if (!brandName) {
     return null;
@@ -162,16 +167,30 @@ async function findOrCreateBrandId(client: PoolClient, brandName: string) {
     return String(existing.rows[0].id);
   }
 
-  const created = await client.query(
-    `
-      insert into public.brands (name, slug)
-      values ($1, $2)
-      returning id
-    `,
-    [brandName, await getUniqueSlug(client, "brands", brandName)]
-  );
+  await client.query("savepoint brand_lookup");
 
-  return String(created.rows[0].id);
+  try {
+    const created = await client.query(
+      `
+        insert into public.brands (name, slug)
+        values ($1, $2)
+        returning id
+      `,
+      [brandName, await getUniqueSlug(client, "brands", brandName)]
+    );
+
+    await client.query("release savepoint brand_lookup");
+    return String(created.rows[0].id);
+  } catch (error) {
+    await client.query("rollback to savepoint brand_lookup");
+
+    const existingId = isUniqueViolation(error) ? await getExistingIdByName(client, "brands", brandName) : null;
+    if (existingId) {
+      return existingId;
+    }
+
+    throw error;
+  }
 }
 
 async function findOrCreateCountryId(client: PoolClient, countryName: string) {
@@ -184,16 +203,30 @@ async function findOrCreateCountryId(client: PoolClient, countryName: string) {
     return String(existing.rows[0].id);
   }
 
-  const created = await client.query(
-    `
-      insert into public.countries (name, code)
-      values ($1, null)
-      returning id
-    `,
-    [countryName]
-  );
+  await client.query("savepoint country_lookup");
 
-  return String(created.rows[0].id);
+  try {
+    const created = await client.query(
+      `
+        insert into public.countries (name, code)
+        values ($1, null)
+        returning id
+      `,
+      [countryName]
+    );
+
+    await client.query("release savepoint country_lookup");
+    return String(created.rows[0].id);
+  } catch (error) {
+    await client.query("rollback to savepoint country_lookup");
+
+    const existingId = isUniqueViolation(error) ? await getExistingIdByName(client, "countries", countryName) : null;
+    if (existingId) {
+      return existingId;
+    }
+
+    throw error;
+  }
 }
 
 async function findOrCreateCategoryId(client: PoolClient, categoryName: string, parentId?: string | null) {
@@ -218,16 +251,30 @@ async function findOrCreateCategoryId(client: PoolClient, categoryName: string, 
     return String(existing.rows[0].id);
   }
 
-  const created = await client.query(
-    `
-      insert into public.categories (name, slug, parent_id)
-      values ($1, $2, $3::uuid)
-      returning id
-    `,
-    [categoryName, await getUniqueSlug(client, "categories", parentId ? `${categoryName}-${parentId}` : categoryName), parentId ?? null]
-  );
+  await client.query("savepoint category_lookup");
 
-  return String(created.rows[0].id);
+  try {
+    const created = await client.query(
+      `
+        insert into public.categories (name, slug, parent_id)
+        values ($1, $2, $3::uuid)
+        returning id
+      `,
+      [categoryName, await getUniqueSlug(client, "categories", parentId ? `${categoryName}-${parentId}` : categoryName), parentId ?? null]
+    );
+
+    await client.query("release savepoint category_lookup");
+    return String(created.rows[0].id);
+  } catch (error) {
+    await client.query("rollback to savepoint category_lookup");
+
+    const existingId = isUniqueViolation(error) ? await getExistingIdByName(client, "categories", categoryName) : null;
+    if (existingId) {
+      return existingId;
+    }
+
+    throw error;
+  }
 }
 
 async function findOrCreateProductTypeId(client: PoolClient, typeName: string) {
@@ -240,16 +287,30 @@ async function findOrCreateProductTypeId(client: PoolClient, typeName: string) {
     return String(existing.rows[0].id);
   }
 
-  const created = await client.query(
-    `
-      insert into public.product_types (name, slug)
-      values ($1, $2)
-      returning id
-    `,
-    [typeName, await getUniqueSlug(client, "product_types", typeName)]
-  );
+  await client.query("savepoint product_type_lookup");
 
-  return String(created.rows[0].id);
+  try {
+    const created = await client.query(
+      `
+        insert into public.product_types (name, slug)
+        values ($1, $2)
+        returning id
+      `,
+      [typeName, await getUniqueSlug(client, "product_types", typeName)]
+    );
+
+    await client.query("release savepoint product_type_lookup");
+    return String(created.rows[0].id);
+  } catch (error) {
+    await client.query("rollback to savepoint product_type_lookup");
+
+    const existingId = isUniqueViolation(error) ? await getExistingIdByName(client, "product_types", typeName) : null;
+    if (existingId) {
+      return existingId;
+    }
+
+    throw error;
+  }
 }
 
 async function findOrCreateRegionId(client: PoolClient, regionName: string, countryId?: string | null) {
@@ -275,16 +336,30 @@ async function findOrCreateRegionId(client: PoolClient, regionName: string, coun
     return String(existing.rows[0].id);
   }
 
-  const created = await client.query(
-    `
-      insert into public.regions (country_id, name, slug)
-      values ($1::uuid, $2, $3)
-      returning id
-    `,
-    [countryId ?? null, regionName, await getUniqueSlug(client, "regions", countryId ? `${regionName}-${countryId}` : regionName)]
-  );
+  await client.query("savepoint region_lookup");
 
-  return String(created.rows[0].id);
+  try {
+    const created = await client.query(
+      `
+        insert into public.regions (country_id, name, slug)
+        values ($1::uuid, $2, $3)
+        returning id
+      `,
+      [countryId ?? null, regionName, await getUniqueSlug(client, "regions", countryId ? `${regionName}-${countryId}` : regionName)]
+    );
+
+    await client.query("release savepoint region_lookup");
+    return String(created.rows[0].id);
+  } catch (error) {
+    await client.query("rollback to savepoint region_lookup");
+
+    const existingId = isUniqueViolation(error) ? await getExistingIdByName(client, "regions", regionName) : null;
+    if (existingId) {
+      return existingId;
+    }
+
+    throw error;
+  }
 }
 
 function buildValidationError(message: string): ProductFormState {
@@ -292,6 +367,10 @@ function buildValidationError(message: string): ProductFormState {
     status: "error",
     message
   };
+}
+
+function isUniqueViolation(error: unknown) {
+  return Boolean(error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "23505");
 }
 
 function validateParsedProduct(data: ParsedProductForm) {
@@ -451,7 +530,7 @@ export async function createProductAction(_: ProductFormState, formData: FormDat
   } catch (error) {
     await client.query("rollback");
 
-    if (error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "23505") {
+    if (isUniqueViolation(error)) {
       return mapUniqueConstraintError(error);
     }
 
@@ -606,7 +685,7 @@ export async function updateProductAction(_: ProductFormState, formData: FormDat
   } catch (error) {
     await client.query("rollback");
 
-    if (error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "23505") {
+    if (isUniqueViolation(error)) {
       return mapUniqueConstraintError(error);
     }
 
@@ -617,6 +696,55 @@ export async function updateProductAction(_: ProductFormState, formData: FormDat
     return buildValidationError(error instanceof Error ? error.message : "ไม่สามารถอัปเดตสินค้าได้");
   } finally {
     client.release();
+  }
+}
+
+export async function deleteProductAction(_: ProductFormState, formData: FormData): Promise<ProductFormState> {
+  await requireAdmin();
+
+  const productId = getTextValue(formData, "productId");
+  const productSlug = getTextValue(formData, "productSlug");
+
+  if (!productId) {
+    return buildValidationError("ไม่พบสินค้าที่ต้องการลบ");
+  }
+
+  try {
+    const result = await db.query(
+      `
+        delete from public.products
+        where id = $1
+        returning slug
+      `,
+      [productId]
+    );
+
+    if (!result.rowCount) {
+      return buildValidationError("ไม่พบสินค้าที่ต้องการลบ");
+    }
+
+    const deletedSlug = String(result.rows[0]?.slug ?? productSlug);
+
+    revalidatePath("/admin");
+    revalidatePath(`/admin/products/${productId}`);
+    revalidatePath("/");
+    revalidatePath("/whisky");
+    revalidatePath("/recommended/best-sellers");
+    revalidatePath("/recommended/new-arrivals");
+    revalidatePath("/recommended/monthly-picks");
+    revalidatePath("/recommended/premium-selection");
+    revalidatePath("/recommended/gift-selection");
+
+    if (deletedSlug) {
+      revalidatePath(`/products/${deletedSlug}`);
+    }
+
+    return {
+      status: "success",
+      message: "ลบสินค้าเรียบร้อยแล้ว"
+    };
+  } catch (error) {
+    return buildValidationError(error instanceof Error ? error.message : "ไม่สามารถลบสินค้าได้");
   }
 }
 

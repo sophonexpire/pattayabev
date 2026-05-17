@@ -18,7 +18,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { href: "/admin", label: "สินค้า", matchPrefixes: ["/admin/products"] },
-  { href: "/admin/orders", label: "Orders", matchPrefixes: ["/admin/orders"] },
+  { href: "/admin/orders", label: "คำสั่งซื้อ", matchPrefixes: ["/admin/orders"] },
   { href: "/admin/articles", label: "บทความ", matchPrefixes: ["/admin/articles"] },
   { href: "/admin/promotions", label: "โปรโมชั่น", matchPrefixes: ["/admin/promotions"] },
   { href: "/admin/b2b", label: "ลูกค้า B2B", matchPrefixes: ["/admin/b2b"] },

@@ -4,10 +4,17 @@ import { useMemo, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 
 import { createArticleAction, type ArticleFormState } from "@/app/admin/articles/actions";
+import type { ArticleItem } from "@/lib/articles";
+
+type ArticleFormAction = (
+  state: ArticleFormState,
+  formData: FormData
+) => Promise<ArticleFormState>;
 
 type ArticleSectionDraft = {
   id: string;
   title: string;
+  image: string;
   intro: string;
   content: string;
   imagePreview: string;
@@ -26,13 +33,14 @@ function createEmptySection(): ArticleSectionDraft {
   return {
     id: createSectionId(),
     title: "",
+    image: "",
     intro: "",
     content: "",
     imagePreview: ""
   };
 }
 
-function SubmitButton() {
+function SubmitButton({ mode }: { mode: "create" | "edit" }) {
   const { pending } = useFormStatus();
 
   return (
@@ -41,7 +49,7 @@ function SubmitButton() {
       disabled={pending}
       className="rounded-full bg-[#171212] px-6 py-3 text-sm font-bold uppercase tracking-[0.14em] text-white transition hover:bg-[#2a2323] disabled:cursor-not-allowed disabled:opacity-60"
     >
-      {pending ? "กำลังบันทึก..." : "เพิ่มบทความ"}
+      {pending ? "กำลังบันทึก..." : mode === "edit" ? "บันทึกการแก้ไข" : "เพิ่มบทความ"}
     </button>
   );
 }
@@ -54,14 +62,48 @@ function buildPreviewLines(value: string) {
     .slice(0, 4);
 }
 
-export function ArticleForm({ categories }: { categories: string[] }) {
-  const [state, formAction] = useFormState(createArticleAction, initialFormState);
-  const [title, setTitle] = useState("");
-  const [category, setCategory] = useState(categories[0] ?? "");
-  const [excerpt, setExcerpt] = useState("");
-  const [readTime, setReadTime] = useState("อ่าน 5 นาที");
-  const [coverPreview, setCoverPreview] = useState("/images/categories/recommended.jpg");
-  const [sections, setSections] = useState<ArticleSectionDraft[]>([createEmptySection()]);
+function buildSectionContent(section: ArticleItem["sections"][number]) {
+  return [
+    ...(section.paragraphs ?? []),
+    ...(section.bullets ?? []).map((bullet) => `- ${bullet}`)
+  ].join("\n\n");
+}
+
+function buildInitialSections(article?: ArticleItem): ArticleSectionDraft[] {
+  if (!article?.sections.length) {
+    return [createEmptySection()];
+  }
+
+  return article.sections.map((section, index) => ({
+    id: `section-${index}-${Math.random().toString(36).slice(2, 8)}`,
+    title: section.title,
+    image: section.image ?? "",
+    intro: section.intro ?? "",
+    content: buildSectionContent(section),
+    imagePreview: section.image ?? ""
+  }));
+}
+
+export function ArticleForm({
+  categories,
+  mode = "create",
+  article,
+  action
+}: {
+  categories: string[];
+  mode?: "create" | "edit";
+  article?: ArticleItem;
+  action?: ArticleFormAction;
+}) {
+  const formActionToUse = action ?? createArticleAction;
+  const [state, formAction] = useFormState(formActionToUse, initialFormState);
+  const [title, setTitle] = useState(article?.title ?? "");
+  const [category, setCategory] = useState(article?.category ?? categories[0] ?? "");
+  const [excerpt, setExcerpt] = useState(article?.excerpt ?? "");
+  const [readTime, setReadTime] = useState(article?.readTime ?? "อ่าน 5 นาที");
+  const [introduction, setIntroduction] = useState(article?.introduction.join("\n\n") ?? "");
+  const [coverPreview, setCoverPreview] = useState(article?.image ?? "/images/categories/recommended.jpg");
+  const [sections, setSections] = useState<ArticleSectionDraft[]>(() => buildInitialSections(article));
 
   const sectionsJson = useMemo(
     () =>
@@ -70,6 +112,7 @@ export function ArticleForm({ categories }: { categories: string[] }) {
           .map((section) => ({
             id: section.id,
             title: section.title.trim(),
+            image: section.image,
             intro: section.intro.trim(),
             content: section.content
           }))
@@ -107,10 +150,20 @@ export function ArticleForm({ categories }: { categories: string[] }) {
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
       <form action={formAction} className="grid gap-6">
+        {article ? (
+          <>
+            <input type="hidden" name="originalSlug" value={article.slug} />
+            <input type="hidden" name="existingImage" value={article.image} />
+            <input type="hidden" name="existingPublishedAt" value={article.publishedAt} />
+          </>
+        ) : null}
+
         <section className="grid gap-5 rounded-[28px] border border-[#ece4d6] bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_58%,#f9fbff_100%)] p-5 shadow-[0_12px_30px_rgba(0,0,0,0.04)] sm:p-6">
           <div>
             <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[#8b6a2b]">ข้อมูลพื้นฐานบทความ</p>
-            <h3 className="mt-2 text-2xl font-extrabold text-[#171212]">เพิ่มบทความใหม่</h3>
+            <h3 className="mt-2 text-2xl font-extrabold text-[#171212]">
+              {mode === "edit" ? "แก้ไขบทความ" : "เพิ่มบทความใหม่"}
+            </h3>
             <p className="mt-2 text-sm leading-7 text-[#5f5852]">
               กรอกรายละเอียดหลักก่อน แล้วค่อยเพิ่มแต่ละ section ของเนื้อหาด้านล่าง ระบบจะจัดโครงบทความให้อัตโนมัติ
             </p>
@@ -203,6 +256,8 @@ export function ArticleForm({ categories }: { categories: string[] }) {
               name="introduction"
               required
               rows={6}
+              value={introduction}
+              onChange={(event) => setIntroduction(event.target.value)}
               placeholder="เขียนบทนำของบทความตรงนี้ เว้นบรรทัดเพื่อขึ้นย่อหน้าใหม่"
               className="rounded-[24px] border border-[#ddd3c5] bg-white px-4 py-4 text-sm leading-7 text-[#171212] outline-none transition focus:border-[#171212]"
             />
@@ -241,7 +296,7 @@ export function ArticleForm({ categories }: { categories: string[] }) {
                       onClick={() => removeSection(section.id)}
                       className="text-xs font-bold uppercase tracking-[0.12em] text-[#a61b1f]"
                     >
-                      Remove
+                      ลบส่วนนี้
                     </button>
                   ) : null}
                 </div>
@@ -258,11 +313,11 @@ export function ArticleForm({ categories }: { categories: string[] }) {
                   </label>
 
                   <label className="grid gap-2 text-sm font-semibold text-[#171212]">
-                    <span>Short intro</span>
+                    <span>คำเกริ่นของส่วนนี้</span>
                     <input
                       value={section.intro}
                       onChange={(event) => updateSection(section.id, "intro", event.target.value)}
-                      placeholder="Optional short line before the main content"
+                      placeholder="ข้อความสั้นก่อนเข้าสู่เนื้อหาหลัก ไม่บังคับ"
                       className="min-h-[48px] rounded-2xl border border-[#ddd3c5] bg-white px-4 text-sm text-[#171212] outline-none transition focus:border-[#171212]"
                     />
                   </label>
@@ -312,7 +367,7 @@ export function ArticleForm({ categories }: { categories: string[] }) {
               <p>เมื่อบันทึกแล้ว หน้ารวมบทความและหน้าบทความจริงจะอัปเดตอัตโนมัติ</p>
             )}
           </div>
-          <SubmitButton />
+          <SubmitButton mode={mode} />
         </div>
       </form>
 

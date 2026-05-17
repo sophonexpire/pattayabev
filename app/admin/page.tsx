@@ -7,6 +7,7 @@ import {
   adminPrimaryActionClass,
   adminSecondaryActionClass
 } from "@/components/admin/admin-shell";
+import { ProductDeleteForm } from "@/components/admin/product-delete-form";
 import { ProductForm } from "@/components/admin/product-form";
 import { ProductStockForm } from "@/components/admin/product-stock-form";
 import { LogoutButton } from "@/components/auth/logout-button";
@@ -197,6 +198,11 @@ export default async function AdminPage() {
                     >
                       ดูหน้าสินค้า
                     </Link>
+                    <ProductDeleteForm
+                      productId={product.id}
+                      productSlug={product.slug}
+                      productName={product.name}
+                    />
                   </div>
                 </div>
               </article>

@@ -6,6 +6,12 @@ import { useFormState, useFormStatus } from "react-dom";
 import { createPromotionAction } from "@/app/admin/promotions/actions";
 import type { PromotionFormState } from "@/app/admin/promotions/actions";
 import type { AdminProductListItem } from "@/lib/products";
+import type { PromotionCard } from "@/lib/promotions";
+
+type PromotionFormAction = (
+  state: PromotionFormState,
+  formData: FormData
+) => Promise<PromotionFormState>;
 
 type PreviewState = {
   title: string;
@@ -23,7 +29,7 @@ const initialPromotionFormState: PromotionFormState = {
   message: ""
 };
 
-function SubmitButton() {
+function SubmitButton({ mode }: { mode: "create" | "edit" }) {
   const { pending } = useFormStatus();
 
   return (
@@ -32,7 +38,7 @@ function SubmitButton() {
       disabled={pending}
       className="rounded-full bg-[#171212] px-6 py-3 text-sm font-bold uppercase tracking-[0.14em] text-white transition hover:bg-[#2a2323] disabled:cursor-not-allowed disabled:opacity-60"
     >
-      {pending ? "กำลังบันทึก..." : "เพิ่มโปรโมชั่น"}
+      {pending ? "กำลังบันทึก..." : mode === "edit" ? "บันทึกการแก้ไข" : "เพิ่มโปรโมชั่น"}
     </button>
   );
 }
@@ -61,7 +67,7 @@ function getDiscountedPrice(originalPrice: number | null, discountPercent: strin
 
 function formatPromotionPeriod(startDate: string, endDate: string) {
   if (!startDate && !endDate) {
-    return "No promotion dates selected";
+    return "ยังไม่ได้เลือกช่วงเวลาโปรโมชั่น";
   }
 
   if (startDate && endDate) {
@@ -69,14 +75,39 @@ function formatPromotionPeriod(startDate: string, endDate: string) {
   }
 
   if (startDate) {
-    return `Starts ${startDate}`;
+    return `เริ่ม ${startDate}`;
   }
 
-  return `Ends ${endDate}`;
+  return `ถึง ${endDate}`;
 }
 
-export function PromotionForm({ products }: { products: AdminProductListItem[] }) {
-  const [state, formAction] = useFormState(createPromotionAction, initialPromotionFormState);
+function toDateInputValue(value: string | null) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+export function PromotionForm({
+  products,
+  mode = "create",
+  promotion,
+  action
+}: {
+  products: AdminProductListItem[];
+  mode?: "create" | "edit";
+  promotion?: PromotionCard;
+  action?: PromotionFormAction;
+}) {
+  const formActionToUse = action ?? createPromotionAction;
+  const [state, formAction] = useFormState(formActionToUse, initialPromotionFormState);
   const productLookup = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
   const searchableProducts = useMemo(
     () =>
@@ -88,18 +119,21 @@ export function PromotionForm({ products }: { products: AdminProductListItem[] }
     [products]
   );
 
+  const initialProduct = promotion?.linkedProductId ? productLookup.get(promotion.linkedProductId) : null;
   const [preview, setPreview] = useState<PreviewState>({
-    title: "DISCOUNT PROMOTION",
-    linkedProductLabel: "No product selected",
-    discountPercent: "",
-    startDate: "",
-    endDate: "",
-    imageUrl: "/images/hero/promo-buy-more.jpg",
-    originalPrice: null,
-    currency: "THB"
+    title: promotion?.title ?? "โปรโมชั่นส่วนลด",
+    linkedProductLabel: promotion?.linkedProductName ?? "ยังไม่ได้เลือกสินค้า",
+    discountPercent: promotion?.discountPercent != null ? String(promotion.discountPercent) : "",
+    startDate: toDateInputValue(promotion?.startAt ?? null),
+    endDate: toDateInputValue(promotion?.endAt ?? null),
+    imageUrl: promotion?.imageUrl || initialProduct?.imageUrl || "/images/hero/promo-buy-more.jpg",
+    originalPrice: promotion?.linkedProductPrice ?? initialProduct?.price ?? null,
+    currency: promotion?.linkedProductCurrency ?? initialProduct?.currency ?? "THB"
   });
-  const [productSearch, setProductSearch] = useState("");
-  const [selectedProductId, setSelectedProductId] = useState("");
+  const [productSearch, setProductSearch] = useState(
+    promotion?.linkedProductName ? `${promotion.linkedProductName}` : ""
+  );
+  const [selectedProductId, setSelectedProductId] = useState(promotion?.linkedProductId ?? "");
 
   const filteredProducts = useMemo(() => {
     const keyword = productSearch.trim().toLowerCase();
@@ -131,8 +165,8 @@ export function PromotionForm({ products }: { products: AdminProductListItem[] }
     setProductSearch(searchableProduct?.label ?? "");
     setPreview((current) => ({
       ...current,
-      title: product ? `${product.name} DISCOUNT` : current.title,
-      linkedProductLabel: product ? product.name : "No product selected",
+      title: product && mode === "create" ? `${product.name} โปรโมชั่นส่วนลด` : current.title,
+      linkedProductLabel: product ? product.name : "ยังไม่ได้เลือกสินค้า",
       imageUrl: product?.imageUrl || current.imageUrl,
       originalPrice: product?.price ?? null,
       currency: product?.currency ?? "THB"
@@ -153,7 +187,7 @@ export function PromotionForm({ products }: { products: AdminProductListItem[] }
     setSelectedProductId("");
     setPreview((current) => ({
       ...current,
-      linkedProductLabel: "No product selected",
+      linkedProductLabel: "ยังไม่ได้เลือกสินค้า",
       originalPrice: null
     }));
   };
@@ -161,10 +195,19 @@ export function PromotionForm({ products }: { products: AdminProductListItem[] }
   return (
     <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_390px]">
       <form action={formAction} className="grid gap-6">
+        {promotion ? (
+          <>
+            <input type="hidden" name="promotionId" value={promotion.id} />
+            <input type="hidden" name="existingImageUrl" value={promotion.imageUrl ?? ""} />
+          </>
+        ) : null}
+
         <section className="rounded-[24px] border border-[#ece4d6] bg-white p-5 shadow-[0_12px_30px_rgba(0,0,0,0.04)] sm:p-6">
           <div className="border-b border-[#ece4d6] pb-5">
               <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-[#8b6a2b]">ข้อมูลโปรโมชั่น</p>
-            <h2 className="mt-2 text-2xl font-extrabold text-[#171212]">สร้างโปรโมชั่นส่วนลด</h2>
+            <h2 className="mt-2 text-2xl font-extrabold text-[#171212]">
+              {mode === "edit" ? "แก้ไขโปรโมชั่นส่วนลด" : "สร้างโปรโมชั่นส่วนลด"}
+            </h2>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-[#5f5852]">
               เริ่มจากเลือกสินค้า จากนั้นกรอกเปอร์เซ็นต์ส่วนลดและช่วงเวลาโปรโมชั่น ระบบจะคำนวณราคาหลังลดในตัวอย่างให้ทันที
             </p>
@@ -198,7 +241,7 @@ export function PromotionForm({ products }: { products: AdminProductListItem[] }
                         <span className="block truncate text-sm font-semibold text-[#171212]">{product.label}</span>
                       </span>
                       {selectedProductId === product.id ? (
-                        <span className="shrink-0 rounded-full bg-[#171212] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white">Selected</span>
+                        <span className="shrink-0 rounded-full bg-[#171212] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white">เลือกแล้ว</span>
                       ) : null}
                     </button>
                   ))
@@ -218,6 +261,7 @@ export function PromotionForm({ products }: { products: AdminProductListItem[] }
                 max="100"
                 step="0.01"
                 placeholder="15"
+                value={preview.discountPercent}
                 onChange={(event) => setPreview((current) => ({ ...current, discountPercent: event.target.value }))}
                 className="min-h-[46px] w-full min-w-0 rounded-2xl border border-[#ddd3c5] bg-white px-4 text-sm text-[#171212] outline-none transition focus:border-[#171212]"
               />
@@ -229,9 +273,9 @@ export function PromotionForm({ products }: { products: AdminProductListItem[] }
                 name="title"
                 required
                 value={preview.title}
-                onChange={(event) => setPreview((current) => ({ ...current, title: event.target.value.toUpperCase() }))}
-                placeholder="SUMMER DISCOUNT"
-                className="min-h-[46px] w-full min-w-0 rounded-2xl border border-[#ddd3c5] bg-white px-4 text-sm uppercase text-[#171212] outline-none transition focus:border-[#171212]"
+                onChange={(event) => setPreview((current) => ({ ...current, title: event.target.value }))}
+                placeholder="โปรโมชั่นส่วนลดประจำเดือน"
+                className="min-h-[46px] w-full min-w-0 rounded-2xl border border-[#ddd3c5] bg-white px-4 text-sm text-[#171212] outline-none transition focus:border-[#171212]"
               />
             </label>
 
@@ -240,6 +284,7 @@ export function PromotionForm({ products }: { products: AdminProductListItem[] }
               <input
                 name="startDate"
                 type="date"
+                value={preview.startDate}
                 onChange={(event) => setPreview((current) => ({ ...current, startDate: event.target.value }))}
                 className="min-h-[46px] w-full min-w-0 rounded-2xl border border-[#ddd3c5] bg-white px-4 text-sm text-[#171212] outline-none transition focus:border-[#171212]"
               />
@@ -250,13 +295,38 @@ export function PromotionForm({ products }: { products: AdminProductListItem[] }
               <input
                 name="endDate"
                 type="date"
+                value={preview.endDate}
                 onChange={(event) => setPreview((current) => ({ ...current, endDate: event.target.value }))}
                 className="min-h-[46px] w-full min-w-0 rounded-2xl border border-[#ddd3c5] bg-white px-4 text-sm text-[#171212] outline-none transition focus:border-[#171212]"
               />
             </label>
 
+            <label className="grid min-w-0 gap-2 text-sm font-semibold text-[#171212] md:col-span-2">
+              <span>รูปภาพโปรโมชั่น</span>
+              <input
+                name="promotionImage"
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+                className="min-h-[46px] w-full min-w-0 rounded-2xl border border-[#ddd3c5] bg-white px-4 py-3 text-sm text-[#171212] file:mr-4 file:rounded-full file:border-0 file:bg-[#171212] file:px-4 file:py-2 file:text-xs file:font-bold file:text-white"
+              />
+              <span className="text-xs font-normal leading-5 text-[#7a736b]">
+                ถ้าไม่เลือกรูปใหม่ ระบบจะใช้รูปเดิมของโปรโมชั่นหรือรูปสินค้าที่เลือกไว้
+              </span>
+            </label>
+
             <input type="hidden" name="description" value="" readOnly />
-            <input type="hidden" name="isActive" value="true" readOnly />
+            <label className="grid min-w-0 gap-2 text-sm font-semibold text-[#171212]">
+              <span>สถานะโปรโมชั่น</span>
+              <select
+                name="isActive"
+                defaultValue={promotion?.isActive === false ? "false" : "true"}
+                className="min-h-[46px] w-full min-w-0 rounded-2xl border border-[#ddd3c5] bg-white px-4 text-sm text-[#171212] outline-none transition focus:border-[#171212]"
+              >
+                <option value="true">เปิดใช้งาน</option>
+                <option value="false">ปิดใช้งาน</option>
+              </select>
+            </label>
           </div>
         </section>
 
@@ -268,7 +338,7 @@ export function PromotionForm({ products }: { products: AdminProductListItem[] }
               <p className="text-[#7a736b]">เมื่อบันทึกแล้ว สินค้าที่เลือกจะไปแสดงพร้อมราคาลดบนหน้าโปรโมชั่น</p>
             )}
           </div>
-          <SubmitButton />
+          <SubmitButton mode={mode} />
         </div>
       </form>
 
@@ -291,7 +361,7 @@ export function PromotionForm({ products }: { products: AdminProductListItem[] }
 
             <div className="space-y-4 px-5 py-5">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#8b6a2b]">DISCOUNT</p>
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#8b6a2b]">ส่วนลด</p>
                 <h3 className="mt-2 text-xl font-extrabold text-[#171212]">{preview.linkedProductLabel}</h3>
               </div>
 
@@ -315,7 +385,7 @@ export function PromotionForm({ products }: { products: AdminProductListItem[] }
               </div>
 
               <div className="rounded-[20px] border border-[#ece4d6] px-4 py-4">
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#8b6a2b]">Promotion date</p>
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#8b6a2b]">ช่วงเวลาโปรโมชั่น</p>
                 <p className="mt-2 text-sm font-semibold text-[#171212]">{formatPromotionPeriod(preview.startDate, preview.endDate)}</p>
               </div>
             </div>

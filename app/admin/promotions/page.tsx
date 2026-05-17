@@ -6,6 +6,7 @@ import {
   adminPrimaryActionClass,
   adminSecondaryActionClass
 } from "@/components/admin/admin-shell";
+import { PromotionDeleteForm } from "@/components/admin/promotion-delete-form";
 import { PromotionForm } from "@/components/admin/promotion-form";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { requireAdmin } from "@/lib/auth";
@@ -137,22 +138,32 @@ export default async function AdminPromotionsPage() {
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-3">
-                    <Link
+                  <div className="rounded-2xl border border-[#ece4d6] bg-[#fbf7f0] p-3">
+                    <p className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-[#8b6a2b]">จัดการโปรโมชั่น</p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <Link
+                      href={`/admin/promotions/${promotion.id}`}
+                      className="inline-flex min-h-10 items-center justify-center rounded-full bg-[#171212] px-4 text-xs font-bold uppercase tracking-[0.12em] text-white"
+                    >
+                      แก้ไขโปรโมชั่น
+                    </Link>
+                      <Link
                       href={
                         promotion.linkUrl ||
                         (promotion.linkedProductSlug ? `/products/${promotion.linkedProductSlug}` : "/promotions")
                       }
-                      className="inline-flex rounded-full bg-[#171212] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-white"
+                      className="inline-flex min-h-10 items-center justify-center rounded-full border border-[#d8cec0] bg-white px-4 text-xs font-bold uppercase tracking-[0.12em] text-[#171212]"
                     >
                       เปิดลิงก์
                     </Link>
-                    <Link
+                      <Link
                       href="/promotions"
-                      className="inline-flex rounded-full border border-[#d8cec0] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[#171212]"
+                      className="inline-flex min-h-10 items-center justify-center rounded-full border border-[#d8cec0] bg-white px-4 text-xs font-bold uppercase tracking-[0.12em] text-[#171212]"
                     >
                       ดูหน้าโปรโมชั่น
-                    </Link>
+                      </Link>
+                      <PromotionDeleteForm promotionId={promotion.id} title={promotion.title} />
+                    </div>
                   </div>
                 </div>
               </article>
